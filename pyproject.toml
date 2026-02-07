@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleanlab-demo"
+version = "0.1.0"
+description = "Cleanlab end-to-end demo with real-world data, Pydantic-validated configs, and a small UI."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "cleanlab>=2.6.0",
+  "ipykernel>=7.2.0",
+  "joblib>=1.4.2",
+  "numpy>=1.26.4",
+  "pandas>=2.2.0",
+  "pydantic>=2.6.1",
+  "pydantic-settings>=2.2.1",
+  "requests>=2.31.0",
+  "rich>=13.7.1",
+  "scikit-learn>=1.4.0",
+  "typer>=0.12.3",
+]
+
+[project.optional-dependencies]
+ai = ["pydantic-ai>=0.0.24"]
+dev = [
+  "mypy>=1.8.0",
+  "pytest>=8.0.0",
+  "pytest-cov>=4.1.0",
+  "ruff>=0.4.0",
+  "types-requests>=2.31.0.20240218",
+]
+notebooks = [
+  "ipykernel>=6.29.0",
+  "jupyterlab>=4.1.0",
+  "matplotlib>=3.8.0",
+  "seaborn>=0.13.0",
+]
+ui = ["plotly>=5.19.0", "streamlit>=1.32.0"]
+
+[project.scripts]
+cleanlab-demo = "cleanlab_demo.cli:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
