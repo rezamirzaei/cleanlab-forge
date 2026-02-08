@@ -18,6 +18,8 @@ from cleanlab_demo.config import (
 from cleanlab_demo.experiments import run_experiment
 from cleanlab_demo.settings import settings
 
+_MIN_MAX_ROWS = 100
+
 
 def _available_models(task: TaskType) -> list[ModelName]:
     if task == TaskType.classification:
@@ -54,15 +56,15 @@ def main() -> None:
 
         test_size = st.slider("Test size", min_value=0.05, max_value=0.5, value=0.2, step=0.05)
         max_rows = st.number_input(
-            "Max rows (0 = use all data, min 100 otherwise)",
+            f"Max rows (0 = use all data, min {_MIN_MAX_ROWS} otherwise)",
             min_value=0,
             value=0,
             step=1000,
-            help="Set to 0 to use all rows, or at least 100 to subsample.",
+            help=f"Set to 0 to use all rows, or at least {_MIN_MAX_ROWS} to subsample.",
         )
-        if 0 < max_rows < 100:
-            st.warning("Max rows must be at least 100. Using 100.")
-            max_rows = 100
+        if 0 < max_rows < _MIN_MAX_ROWS:
+            st.warning(f"Max rows must be at least {_MIN_MAX_ROWS}. Using {_MIN_MAX_ROWS}.")
+            max_rows = _MIN_MAX_ROWS
 
         st.markdown("---")
         st.subheader("Cleanlab")
