@@ -11,6 +11,6 @@ __pycache__/
 .env.*
 !.env.example
 
-# Data + artifacts
-data/
-artifacts/
+# Data + artifacts (top-level directories only)
+/data/
+/artifacts/
