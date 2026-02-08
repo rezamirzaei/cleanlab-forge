@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
 from cleanlab_demo.settings import logger
 from cleanlab_demo.utils.fs import ensure_dir
+
+_ALLOWED_SCHEMES = {"http", "https"}
 
 
 class DownloadError(Exception):
@@ -27,7 +30,7 @@ def download_file(
     Download `url` to `dest` if not already present.
 
     Args:
-        url: URL to download from
+        url: URL to download from (must use http or https scheme)
         dest: Destination file path
         timeout_s: Request timeout in seconds
         max_retries: Maximum number of retry attempts
@@ -38,7 +41,14 @@ def download_file(
 
     Raises:
         DownloadError: If download fails after all retries
+        ValueError: If the URL scheme is not allowed
     """
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(
+            f"URL scheme '{parsed.scheme}' is not allowed. Must be one of {_ALLOWED_SCHEMES}."
+        )
+
     ensure_dir(dest.parent)
     if dest.exists() and dest.stat().st_size > 0:
         logger.debug(f"Using cached file: {dest}")

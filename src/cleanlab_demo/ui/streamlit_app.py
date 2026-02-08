@@ -53,7 +53,16 @@ def main() -> None:
         )
 
         test_size = st.slider("Test size", min_value=0.05, max_value=0.5, value=0.2, step=0.05)
-        max_rows = st.number_input("Max rows (optional)", min_value=0, value=0, step=1000)
+        max_rows = st.number_input(
+            "Max rows (0 = use all data, min 100 otherwise)",
+            min_value=0,
+            value=0,
+            step=1000,
+            help="Set to 0 to use all rows, or at least 100 to subsample.",
+        )
+        if 0 < max_rows < 100:
+            st.warning("Max rows must be at least 100. Using 100.")
+            max_rows = 100
 
         st.markdown("---")
         st.subheader("Cleanlab")
@@ -106,8 +115,8 @@ def main() -> None:
         (settings.artifacts_dir / "last_result.json").write_text(
             result.model_dump_json(indent=2), encoding="utf-8"
         )
-    except Exception:
-        pass
+    except Exception as e:
+        st.warning(f"Could not save result to artifacts directory: {e}")
 
     st.subheader("Model comparison (with/without Cleanlab)")
     variants_df = pd.DataFrame(
