@@ -7,8 +7,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .ipynb_checkpoints/
+.env
+.env.*
+!.env.example
 
 # Data + artifacts
 data/
 artifacts/
-

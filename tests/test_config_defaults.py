@@ -15,7 +15,13 @@ def test_defaults_for_bike_sharing() -> None:
     cfg = RunConfig(dataset=DatasetName.bike_sharing)
     assert cfg.task == TaskType.regression
     assert cfg.target_col == "cnt"
-    assert cfg.cleanlab.enabled is False
     assert cfg.model is not None
     assert cfg.model.name == ModelName.ridge
 
+
+def test_defaults_for_california_housing() -> None:
+    cfg = RunConfig(dataset=DatasetName.california_housing)
+    assert cfg.task == TaskType.regression
+    assert cfg.target_col == "MedHouseVal"
+    assert cfg.model is not None
+    assert cfg.model.name == ModelName.ridge

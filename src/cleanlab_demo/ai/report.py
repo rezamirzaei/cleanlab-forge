@@ -26,6 +26,8 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
     dataset = result.get("dataset", "unknown")
     model = result.get("model", "unknown")
     task = result.get("task", "unknown")
+    variants = result.get("variants", []) or []
+    datalab_summary = (result.get("cleanlab_summary", {}) or {}).get("datalab_issue_summary", []) or []
 
     steps = [
         "Inspect top-ranked label issues and verify labels manually.",
@@ -33,7 +35,7 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
         "Compare at least 2 different models (linear + tree/boosting) to validate robustness.",
     ]
     if task == "regression":
-        steps.insert(0, "Cleanlab analysis is mainly classification-focused; start with outliers and duplicates.")
+        steps.insert(0, "Start with outliers and near-duplicates detected by Datalab, then retrain and compare.")
 
     # Add metric-specific recommendations
     if metrics.get("roc_auc", 0) < 0.7:
@@ -41,10 +43,40 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
     if n_issues > 50:
         steps.append(f"High number of label issues ({n_issues}) detected - prioritize data quality review.")
 
+    best_variant = None
+    try:
+        best_variant = max(variants, key=lambda v: float(v.get("metrics", {}).get("primary", float("-inf"))))
+    except Exception:
+        best_variant = None
+
+    outlier_count = None
+    near_dup_count = None
+    try:
+        for row in datalab_summary:
+            if row.get("issue_type") == "outlier":
+                outlier_count = int(row.get("num_issues", 0))
+            if row.get("issue_type") == "near_duplicate":
+                near_dup_count = int(row.get("num_issues", 0))
+    except Exception:
+        pass
+
+    if outlier_count:
+        steps.append(f"Review {outlier_count} potential outliers flagged by Datalab.")
+    if near_dup_count:
+        steps.append(f"Review {near_dup_count} potential near-duplicates flagged by Datalab.")
+
     return AIExperimentReport(
         headline=f"{dataset} / {model} ({task})",
-        summary=f"Found {n_issues} potential label issues (if Cleanlab enabled). "
-        f"Primary metric: {result.get('metrics', {}).get('primary', 'N/A')}",
+        summary=(
+            f"Found {n_issues} potential label issues. "
+            f"Baseline primary metric: {result.get('metrics', {}).get('primary', 'N/A')}. "
+            + (
+                f"Best variant: {best_variant.get('variant')} "
+                f"({best_variant.get('metrics', {}).get('primary')})."
+                if isinstance(best_variant, dict) and best_variant.get("variant")
+                else ""
+            )
+        ).strip(),
         key_metrics={k: float(v) for k, v in metrics.items() if isinstance(v, (int, float))},
         recommended_next_steps=steps,
     )
@@ -94,6 +126,12 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
     if not use_ai:
         return baseline.model_dump_json(indent=2)
 
+    if not (settings.openai_api_key or settings.anthropic_api_key or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")):
+        baseline.recommended_next_steps.insert(
+            0, "Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to enable the LLM-backed report."
+        )
+        return baseline.model_dump_json(indent=2)
+
     try:
         from pydantic_ai import Agent
     except ImportError:
@@ -102,29 +140,60 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
 
     model_name = _get_ai_model()
     system_prompt = (
-        "You are a senior ML engineer. Given an experiment result JSON that may include Cleanlab "
-        "label issue findings, produce a concise report with actionable next steps. "
-        "Focus on practical recommendations for improving model performance and data quality. "
+        "You are a senior ML engineer. You will be given access to tools that can fetch:\n"
+        "- experiment metrics and model variants\n"
+        "- Cleanlab label issues\n"
+        "- Datalab issue summaries (outliers/near-duplicates/etc)\n"
+        "\n"
+        "Produce a concise report with actionable next steps.\n"
         "Return ONLY valid JSON matching the required schema."
     )
 
-    prompt = json.dumps(
-        {
-            "result": result,
-            "baseline_report": baseline.model_dump(mode="json"),
-        },
-        indent=2,
-    )
-
     try:
+        from dataclasses import dataclass
+        from pydantic_ai import RunContext
+
+        @dataclass
+        class Deps:
+            result: dict[str, Any]
+            baseline: AIExperimentReport
+
         logger.info(f"Generating AI report using {model_name}")
-        agent = Agent(model=model_name, output_type=AIExperimentReport, system_prompt=system_prompt)
-        ai_result = agent.run_sync(prompt)
-        data = getattr(ai_result, "data", None) or getattr(ai_result, "output", None) or ai_result
-        if isinstance(data, AIExperimentReport):
-            return data.model_dump_json(indent=2)
-        return AIExperimentReport.model_validate(data).model_dump_json(indent=2)
+        agent = Agent(model=model_name, output_type=AIExperimentReport, deps_type=Deps, system_prompt=system_prompt)
+
+        @agent.tool
+        def get_result(ctx: RunContext[Deps]) -> dict[str, Any]:
+            """Return the full experiment result JSON."""
+            return ctx.deps.result
+
+        @agent.tool
+        def get_baseline_report(ctx: RunContext[Deps]) -> dict[str, Any]:
+            """Return the deterministic (non-LLM) baseline report JSON."""
+            return ctx.deps.baseline.model_dump(mode="json")
+
+        @agent.tool
+        def get_top_label_issues(ctx: RunContext[Deps], n: int = 10) -> list[dict[str, Any]]:
+            """Return top-N label issues (ranked)."""
+            issues = ctx.deps.result.get("label_issues") or []
+            return list(issues)[: int(n)]
+
+        @agent.tool
+        def get_variant_table(ctx: RunContext[Deps]) -> list[dict[str, Any]]:
+            """Return baseline vs Cleanlab variant metrics."""
+            return ctx.deps.result.get("variants") or []
+
+        @agent.tool
+        def get_datalab_issue_summary(ctx: RunContext[Deps]) -> list[dict[str, Any]]:
+            """Return Datalab issue summary rows."""
+            summary = (ctx.deps.result.get("cleanlab_summary") or {}).get("datalab_issue_summary") or []
+            return list(summary)
+
+        deps = Deps(result=result, baseline=baseline)
+        ai_result = agent.run_sync(
+            "Generate the report. Prefer calling tools instead of relying on assumptions.",
+            deps=deps,
+        )
+        return ai_result.output.model_dump_json(indent=2)
     except Exception as e:
         logger.warning(f"AI report generation failed: {e}, using deterministic fallback")
         return baseline.model_dump_json(indent=2)
-

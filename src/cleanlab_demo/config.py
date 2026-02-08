@@ -19,6 +19,7 @@ class DatasetName(str, Enum):
 
     adult_income = "adult_income"
     bike_sharing = "bike_sharing"
+    california_housing = "california_housing"
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class DatasetDefaults:
 DATASET_DEFAULTS: dict[DatasetName, DatasetDefaults] = {
     DatasetName.adult_income: DatasetDefaults(task=TaskType.classification, target_col="income"),
     DatasetName.bike_sharing: DatasetDefaults(task=TaskType.regression, target_col="cnt"),
+    DatasetName.california_housing: DatasetDefaults(task=TaskType.regression, target_col="MedHouseVal"),
 }
 
 
@@ -57,7 +59,9 @@ class ModelName(str, Enum):
 
     logistic_regression = "logistic_regression"
     random_forest = "random_forest"
+    extra_trees = "extra_trees"
     hist_gradient_boosting = "hist_gradient_boosting"
+    knn = "knn"
     ridge = "ridge"
 
 
@@ -74,7 +78,27 @@ class CleanlabConfig(BaseModel):
     enabled: bool = Field(default=True, description="Enable Cleanlab analysis")
     cv_folds: int = Field(default=5, ge=2, le=20, description="Number of CV folds for out-of-sample predictions")
     use_datalab: bool = Field(default=True, description="Use Datalab for additional issue types")
+    datalab_fast: bool = Field(
+        default=True,
+        description="Run a faster subset of Datalab checks (label/outlier/near_duplicate/non_iid).",
+    )
     train_cleanlearning: bool = Field(default=False, description="Train a CleanLearning model")
+    prune_and_retrain: bool = Field(
+        default=True,
+        description="Train an additional model after pruning the worst issues from the training set.",
+    )
+    prune_fraction: float = Field(
+        default=0.02,
+        ge=0.0,
+        le=0.2,
+        description="Fraction of training data to prune when retraining (0 disables pruning).",
+    )
+    prune_max_samples: int = Field(
+        default=500,
+        ge=0,
+        le=100_000,
+        description="Upper bound on number of samples to prune when retraining.",
+    )
     issue_score_threshold: float | None = Field(
         default=None,
         ge=0.0,
@@ -131,9 +155,13 @@ class RunConfig(BaseModel):
             )
             self.model = ModelConfig(name=default_model)
 
-        if self.task == TaskType.regression and self.cleanlab.enabled:
-            # Cleanlab's strongest support is classification; allow regression runs without Cleanlab.
-            self.cleanlab.enabled = False
+        if self.task == TaskType.regression:
+            # Stratification only applies to classification.
+            if self.split.stratify:
+                self.split.stratify = False
+            # CleanLearning is classification-only.
+            if self.cleanlab.train_cleanlearning:
+                self.cleanlab.train_cleanlearning = False
 
         return self
 
@@ -149,9 +177,26 @@ class LabelIssue(BaseModel):
     """A potential label issue detected by Cleanlab."""
 
     index: int = Field(description="Index in the training set")
-    label: str | int = Field(description="Current label value")
-    suggested_label: str | int | None = Field(default=None, description="Suggested correct label")
+    label: str | int | float = Field(description="Current label value")
+    suggested_label: str | int | float | None = Field(default=None, description="Suggested correct label")
     score: float = Field(description="Confidence score (lower means more likely mislabeled)")
+
+
+class TrainingVariant(str, Enum):
+    """Different training strategies to compare."""
+
+    baseline = "baseline"
+    pruned_retrain = "pruned_retrain"
+    cleanlearning = "cleanlearning"
+
+
+class VariantResult(BaseModel):
+    """Metrics for a particular training variant."""
+
+    variant: TrainingVariant
+    metrics: Metrics
+    n_train: int
+    notes: dict[str, Any] = Field(default_factory=dict)
 
 
 class RunResult(BaseModel):
@@ -164,4 +209,8 @@ class RunResult(BaseModel):
     n_test: int = Field(description="Number of test samples")
     metrics: Metrics
     label_issues: list[LabelIssue] = Field(default_factory=list, description="Detected label issues")
+    variants: list[VariantResult] = Field(
+        default_factory=list,
+        description="Comparison of baseline vs Cleanlab-enabled training variants.",
+    )
     cleanlab_summary: dict[str, Any] = Field(default_factory=dict, description="Cleanlab analysis summary")

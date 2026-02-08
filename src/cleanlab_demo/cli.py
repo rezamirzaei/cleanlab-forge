@@ -66,8 +66,26 @@ def run(
     max_rows: Optional[int] = typer.Option(None, min=100, help="Max rows to sample from dataset."),
     label_noise: Optional[float] = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
     cleanlab_enabled: Optional[bool] = typer.Option(None, "--cleanlab/--no-cleanlab", help="Enable/disable Cleanlab analysis."),
+    use_datalab: Optional[bool] = typer.Option(None, "--datalab/--no-datalab", help="Enable/disable Datalab checks."),
+    datalab_fast: Optional[bool] = typer.Option(
+        None,
+        "--datalab-fast/--datalab-full",
+        help="Use fast Datalab subset vs full default audit.",
+    ),
     cv_folds: Optional[int] = typer.Option(None, min=2, max=20, help="CV folds for Cleanlab."),
     train_cleanlearning: Optional[bool] = typer.Option(None, help="Train a CleanLearning model (classification only)."),
+    prune_and_retrain: Optional[bool] = typer.Option(
+        None,
+        "--prune/--no-prune",
+        help="Compare baseline vs pruned-retrain variant.",
+    ),
+    prune_fraction: Optional[float] = typer.Option(
+        None,
+        min=0.0,
+        max=0.2,
+        help="Fraction of the training set to prune when retraining.",
+    ),
+    prune_max_samples: Optional[int] = typer.Option(None, min=0, help="Max samples to prune when retraining."),
     save_json: Optional[Path] = typer.Option(None, "--save-json", "-o", help="If set, save result JSON to this path."),
 ) -> None:
     """
@@ -100,15 +118,34 @@ def run(
         if label_noise is not None:
             updates["label_noise_fraction"] = label_noise
         data["demo"] = demo.model_copy(update=updates).model_dump(mode="python")
-    if cleanlab_enabled is not None or cv_folds is not None or train_cleanlearning is not None:
+    if (
+        cleanlab_enabled is not None
+        or use_datalab is not None
+        or datalab_fast is not None
+        or cv_folds is not None
+        or train_cleanlearning is not None
+        or prune_and_retrain is not None
+        or prune_fraction is not None
+        or prune_max_samples is not None
+    ):
         cfg = CleanlabCfg.model_validate(data.get("cleanlab", {}))
         updates2 = {}
         if cleanlab_enabled is not None:
             updates2["enabled"] = cleanlab_enabled
+        if use_datalab is not None:
+            updates2["use_datalab"] = use_datalab
+        if datalab_fast is not None:
+            updates2["datalab_fast"] = datalab_fast
         if cv_folds is not None:
             updates2["cv_folds"] = cv_folds
         if train_cleanlearning is not None:
             updates2["train_cleanlearning"] = train_cleanlearning
+        if prune_and_retrain is not None:
+            updates2["prune_and_retrain"] = prune_and_retrain
+        if prune_fraction is not None:
+            updates2["prune_fraction"] = prune_fraction
+        if prune_max_samples is not None:
+            updates2["prune_max_samples"] = prune_max_samples
         data["cleanlab"] = cfg.model_copy(update=updates2).model_dump(mode="python")
 
     config = RunConfig.model_validate(data)
@@ -190,9 +227,21 @@ def sweep(
     task = DATASET_DEFAULTS[dataset].task
     if not models:
         models = (
-            [ModelName.logistic_regression, ModelName.hist_gradient_boosting, ModelName.random_forest]
+            [
+                ModelName.logistic_regression,
+                ModelName.hist_gradient_boosting,
+                ModelName.random_forest,
+                ModelName.extra_trees,
+                ModelName.knn,
+            ]
             if task == TaskType.classification
-            else [ModelName.ridge, ModelName.hist_gradient_boosting, ModelName.random_forest]
+            else [
+                ModelName.ridge,
+                ModelName.hist_gradient_boosting,
+                ModelName.random_forest,
+                ModelName.extra_trees,
+                ModelName.knn,
+            ]
         )
 
     console.print(f"[blue]Running sweep on {dataset.value} with {len(models)} models...[/blue]")
