@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
 
     @model_validator(mode="after")
-    def _resolve_relative_paths(self) -> "Settings":
+    def _resolve_relative_paths(self) -> Settings:
         if not self.data_dir.is_absolute():
             self.data_dir = (PROJECT_ROOT / self.data_dir).resolve()
         if not self.artifacts_dir.is_absolute():

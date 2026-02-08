@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from cleanlab_demo.utils.download import download_file
-from pathlib import Path
 
 
 def test_download_file_rejects_file_scheme(tmp_path: Path) -> None:

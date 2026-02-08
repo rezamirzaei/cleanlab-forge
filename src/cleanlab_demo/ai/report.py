@@ -151,6 +151,7 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
 
     try:
         from dataclasses import dataclass
+
         from pydantic_ai import RunContext
 
         @dataclass

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
 
@@ -138,7 +139,7 @@ class RunConfig(BaseModel):
     demo: DemoConfig = Field(default_factory=DemoConfig)
 
     @model_validator(mode="after")
-    def _fill_defaults(self) -> "RunConfig":
+    def _fill_defaults(self) -> RunConfig:
         defaults = DATASET_DEFAULTS[self.dataset]
 
         if self.task is None:
@@ -214,3 +215,7 @@ class RunResult(BaseModel):
         description="Comparison of baseline vs Cleanlab-enabled training variants.",
     )
     cleanlab_summary: dict[str, Any] = Field(default_factory=dict, description="Cleanlab analysis summary")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat(),
+        description="ISO-8601 UTC timestamp of when the experiment was run.",
+    )

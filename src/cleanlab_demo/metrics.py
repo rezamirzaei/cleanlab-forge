@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 
 import numpy as np
@@ -8,11 +9,14 @@ from sklearn.metrics import (
     f1_score,
     mean_absolute_error,
     mean_squared_error,
+    precision_score,
     r2_score,
     roc_auc_score,
 )
 
 from cleanlab_demo.config import Metrics
+
+_logger = logging.getLogger(__name__)
 
 
 def classification_metrics(
@@ -20,8 +24,9 @@ def classification_metrics(
 ) -> Metrics:
     acc = float(accuracy_score(y_true, y_pred))
     f1 = float(f1_score(y_true, y_pred, average="weighted"))
+    prec = float(precision_score(y_true, y_pred, average="weighted", zero_division=0))
 
-    details: dict[str, float] = {"accuracy": acc, "f1_weighted": f1}
+    details: dict[str, float] = {"accuracy": acc, "f1_weighted": f1, "precision_weighted": prec}
     primary = f1
 
     if y_proba is not None:
@@ -33,7 +38,7 @@ def classification_metrics(
             details["roc_auc"] = auc
             primary = auc
         except Exception:
-            pass
+            _logger.debug("Could not compute ROC AUC (may require >1 class in y_true)", exc_info=True)
 
     return Metrics(primary=primary, details=details)
 

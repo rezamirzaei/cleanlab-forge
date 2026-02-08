@@ -22,7 +22,7 @@ from cleanlab_demo.experiments.runner import ExperimentRunner
 class DummyDatasetHub:
     dataset: LoadedDataset
 
-    def load(self, name: DatasetName) -> LoadedDataset:  # noqa: ARG002
+    def load(self, name: DatasetName) -> LoadedDataset:
         return self.dataset
 
 

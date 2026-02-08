@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from cleanlab_demo.config import DatasetName, TaskType
 from cleanlab_demo.data.hub import DatasetHub

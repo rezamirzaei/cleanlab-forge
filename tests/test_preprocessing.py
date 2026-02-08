@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from cleanlab_demo.config import FeatureEngineeringConfig
 from cleanlab_demo.features.preprocess import (
-    FeatureColumns,
     build_preprocessor,
     infer_feature_columns,
 )

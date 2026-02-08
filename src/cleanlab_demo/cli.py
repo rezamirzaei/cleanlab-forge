@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -51,7 +50,7 @@ def main_callback(
 
 @app.command()
 def run(
-    config_path: Optional[Path] = typer.Option(
+    config_path: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -60,33 +59,33 @@ def run(
         readable=True,
         help="Path to a JSON config file matching RunConfig.",
     ),
-    dataset: Optional[DatasetName] = typer.Option(None, "--dataset", "-d", help="Dataset to use."),
-    model: Optional[ModelName] = typer.Option(None, "--model", "-m", help="Model to train."),
-    test_size: Optional[float] = typer.Option(None, min=0.05, max=0.5, help="Test split size."),
-    max_rows: Optional[int] = typer.Option(None, min=100, help="Max rows to sample from dataset."),
-    label_noise: Optional[float] = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
-    cleanlab_enabled: Optional[bool] = typer.Option(None, "--cleanlab/--no-cleanlab", help="Enable/disable Cleanlab analysis."),
-    use_datalab: Optional[bool] = typer.Option(None, "--datalab/--no-datalab", help="Enable/disable Datalab checks."),
-    datalab_fast: Optional[bool] = typer.Option(
+    dataset: DatasetName | None = typer.Option(None, "--dataset", "-d", help="Dataset to use."),
+    model: ModelName | None = typer.Option(None, "--model", "-m", help="Model to train."),
+    test_size: float | None = typer.Option(None, min=0.05, max=0.5, help="Test split size."),
+    max_rows: int | None = typer.Option(None, min=100, help="Max rows to sample from dataset."),
+    label_noise: float | None = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
+    cleanlab_enabled: bool | None = typer.Option(None, "--cleanlab/--no-cleanlab", help="Enable/disable Cleanlab analysis."),
+    use_datalab: bool | None = typer.Option(None, "--datalab/--no-datalab", help="Enable/disable Datalab checks."),
+    datalab_fast: bool | None = typer.Option(
         None,
         "--datalab-fast/--datalab-full",
         help="Use fast Datalab subset vs full default audit.",
     ),
-    cv_folds: Optional[int] = typer.Option(None, min=2, max=20, help="CV folds for Cleanlab."),
-    train_cleanlearning: Optional[bool] = typer.Option(None, help="Train a CleanLearning model (classification only)."),
-    prune_and_retrain: Optional[bool] = typer.Option(
+    cv_folds: int | None = typer.Option(None, min=2, max=20, help="CV folds for Cleanlab."),
+    train_cleanlearning: bool | None = typer.Option(None, help="Train a CleanLearning model (classification only)."),
+    prune_and_retrain: bool | None = typer.Option(
         None,
         "--prune/--no-prune",
         help="Compare baseline vs pruned-retrain variant.",
     ),
-    prune_fraction: Optional[float] = typer.Option(
+    prune_fraction: float | None = typer.Option(
         None,
         min=0.0,
         max=0.2,
         help="Fraction of the training set to prune when retraining.",
     ),
-    prune_max_samples: Optional[int] = typer.Option(None, min=0, help="Max samples to prune when retraining."),
-    save_json: Optional[Path] = typer.Option(None, "--save-json", "-o", help="If set, save result JSON to this path."),
+    prune_max_samples: int | None = typer.Option(None, min=0, help="Max samples to prune when retraining."),
+    save_json: Path | None = typer.Option(None, "--save-json", "-o", help="If set, save result JSON to this path."),
 ) -> None:
     """
     Run one experiment and print a JSON result.
@@ -158,7 +157,7 @@ def run(
 
 @app.command()
 def ai_report(
-    result_path: Optional[Path] = typer.Option(
+    result_path: Path | None = typer.Option(
         None,
         "--result",
         "-r",
@@ -210,10 +209,10 @@ def sweep(
         "-m",
         help="Repeatable. If omitted, uses a sensible default list for the dataset task.",
     ),
-    max_rows: Optional[int] = typer.Option(None, min=100, help="Max rows to sample from dataset."),
-    label_noise: Optional[float] = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
+    max_rows: int | None = typer.Option(None, min=100, help="Max rows to sample from dataset."),
+    label_noise: float | None = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
     cv_folds: int = typer.Option(3, min=2, max=20, help="CV folds for Cleanlab."),
-    save_csv: Optional[Path] = typer.Option(None, "--save-csv", "-o", help="If set, save results CSV to this path."),
+    save_csv: Path | None = typer.Option(None, "--save-csv", "-o", help="If set, save results CSV to this path."),
 ) -> None:
     """
     Run a model sweep comparing multiple models on the same dataset.

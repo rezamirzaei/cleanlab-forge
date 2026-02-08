@@ -29,7 +29,7 @@ class StringDtypeConverter(BaseEstimator, TransformerMixin):
     so we convert to regular object dtype with np.nan.
     """
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: object = None) -> "StringDtypeConverter":
+    def fit(self, X: pd.DataFrame | np.ndarray, y: object = None) -> StringDtypeConverter:
         return self
 
     def transform(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:

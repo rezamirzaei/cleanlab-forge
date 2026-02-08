@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import pandas as pd
 
@@ -10,7 +10,6 @@ from cleanlab_demo.config import DATASET_DEFAULTS, DatasetDefaults, DatasetName,
 from cleanlab_demo.data.schemas import LoadedDataset
 from cleanlab_demo.settings import logger
 from cleanlab_demo.utils.download import download_file
-
 
 # ---------------------------------------------------------------------------
 # Dataset specification: URL, loader, and metadata for each dataset.
@@ -57,7 +56,7 @@ def _load_bike_sharing(path: Path) -> pd.DataFrame:
     return df
 
 
-def _load_california_housing(path: Path) -> pd.DataFrame:  # noqa: ARG001
+def _load_california_housing(path: Path) -> pd.DataFrame:
     """Load the California Housing dataset from sklearn."""
     from sklearn.datasets import fetch_california_housing
 

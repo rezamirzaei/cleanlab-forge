@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -32,7 +33,7 @@ class LabelCodec:
     encoder: LabelEncoder
 
     @classmethod
-    def fit(cls, y: pd.Series) -> "LabelCodec":
+    def fit(cls, y: pd.Series) -> LabelCodec:
         enc = LabelEncoder()
         enc.fit(y.to_numpy())
         return cls(encoder=enc)
@@ -53,7 +54,7 @@ def _inject_label_noise(y: np.ndarray, *, frac: float, random_state: int) -> np.
     rng = np.random.default_rng(seed=random_state)
     y_noisy = y.copy()
     n = len(y_noisy)
-    n_flip = int(round(frac * n))
+    n_flip = round(frac * n)
     if n_flip <= 0:
         return y_noisy
 
@@ -228,10 +229,8 @@ def _run_datalab(
                         row["label"] = str(label_val)
                 except Exception:
                     pass
-                try:
+                with contextlib.suppress(Exception):
                     row["row"] = X_train.iloc[idx].to_dict()
-                except Exception:
-                    pass
                 out.append(row)
             return out
 
@@ -259,8 +258,9 @@ def _try_cleanlearning_metrics(
     cv_folds: int,
 ) -> tuple[Metrics | None, str | None]:
     try:
-        from cleanlab.classification import CleanLearning
         import inspect
+
+        from cleanlab.classification import CleanLearning
 
         kwargs: dict[str, Any] = {}
         sig = inspect.signature(CleanLearning)
@@ -451,7 +451,7 @@ class ExperimentRunner:
         ):
             n_prune_target = min(
                 config.cleanlab.prune_max_samples,
-                int(round(config.cleanlab.prune_fraction * len(X_train))),
+                round(config.cleanlab.prune_fraction * len(X_train)),
             )
             if n_prune_target > 0:
                 prune_indices: list[int] = []
