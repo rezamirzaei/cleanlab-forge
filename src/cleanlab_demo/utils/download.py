@@ -87,4 +87,3 @@ def download_file(
                 time.sleep(retry_delay)
 
     raise DownloadError(f"Failed to download {url} after {max_retries} attempts: {last_error}")
-

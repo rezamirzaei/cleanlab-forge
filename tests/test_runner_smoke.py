@@ -82,4 +82,3 @@ def test_runner_regression_smoke() -> None:
     assert result.task == TaskType.regression
     assert result.n_train + result.n_test == n
     assert "r2" in result.metrics.details
-

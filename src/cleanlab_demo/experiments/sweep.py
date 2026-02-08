@@ -41,7 +41,9 @@ def run_sweep(
         try:
             result = exp_runner.run(config)
         except Exception:
-            _logger.warning("Model %s failed during sweep, skipping", model_name.value, exc_info=True)
+            _logger.warning(
+                "Model %s failed during sweep, skipping", model_name.value, exc_info=True
+            )
             continue
         rows.append(
             SweepResultRow(
@@ -54,4 +56,3 @@ def run_sweep(
             )
         )
     return rows
-

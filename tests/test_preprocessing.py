@@ -69,4 +69,3 @@ def test_build_preprocessor_handles_missing_categorical():
     # Should not raise
     transformed = preprocessor.fit_transform(df)
     assert transformed.shape[0] == 3
-

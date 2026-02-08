@@ -66,4 +66,3 @@ class TestRegressionMetrics:
         assert metrics.details["mae"] == pytest.approx(0.5)
         assert metrics.details["rmse"] == pytest.approx(0.5)
         assert metrics.details["r2"] < 1.0
-

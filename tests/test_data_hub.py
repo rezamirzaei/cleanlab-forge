@@ -51,4 +51,3 @@ def test_loaded_dataset_target_series():
 
     target = dataset.target_series()
     assert target.tolist() == [0, 1]
-

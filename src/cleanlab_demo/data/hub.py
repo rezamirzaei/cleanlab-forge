@@ -15,6 +15,7 @@ from cleanlab_demo.utils.download import download_file
 # Dataset specification: URL, loader, and metadata for each dataset.
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class DatasetSpec:
     """Specification for how to obtain and load a single dataset."""
@@ -29,9 +30,20 @@ class DatasetSpec:
 def _load_adult_income(path: Path) -> pd.DataFrame:
     """Load the UCI Adult Income dataset from a CSV file."""
     column_names = [
-        "age", "workclass", "fnlwgt", "education", "education_num",
-        "marital_status", "occupation", "relationship", "race", "sex",
-        "capital_gain", "capital_loss", "hours_per_week", "native_country",
+        "age",
+        "workclass",
+        "fnlwgt",
+        "education",
+        "education_num",
+        "marital_status",
+        "occupation",
+        "relationship",
+        "race",
+        "sex",
+        "capital_gain",
+        "capital_loss",
+        "hours_per_week",
+        "native_country",
         "income",
     ]
     df = pd.read_csv(

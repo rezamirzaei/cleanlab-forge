@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -42,7 +43,9 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main_callback(
-    version: bool = typer.Option(None, "--version", "-V", callback=version_callback, is_eager=True, help="Show version"),
+    version: bool = typer.Option(
+        None, "--version", "-V", callback=version_callback, is_eager=True, help="Show version"
+    ),
 ) -> None:
     """Cleanlab Demo CLI."""
     pass
@@ -63,16 +66,24 @@ def run(
     model: ModelName | None = typer.Option(None, "--model", "-m", help="Model to train."),
     test_size: float | None = typer.Option(None, min=0.05, max=0.5, help="Test split size."),
     max_rows: int | None = typer.Option(None, min=100, help="Max rows to sample from dataset."),
-    label_noise: float | None = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
-    cleanlab_enabled: bool | None = typer.Option(None, "--cleanlab/--no-cleanlab", help="Enable/disable Cleanlab analysis."),
-    use_datalab: bool | None = typer.Option(None, "--datalab/--no-datalab", help="Enable/disable Datalab checks."),
+    label_noise: float | None = typer.Option(
+        None, min=0.0, max=0.5, help="Demo label noise fraction."
+    ),
+    cleanlab_enabled: bool | None = typer.Option(
+        None, "--cleanlab/--no-cleanlab", help="Enable/disable Cleanlab analysis."
+    ),
+    use_datalab: bool | None = typer.Option(
+        None, "--datalab/--no-datalab", help="Enable/disable Datalab checks."
+    ),
     datalab_fast: bool | None = typer.Option(
         None,
         "--datalab-fast/--datalab-full",
         help="Use fast Datalab subset vs full default audit.",
     ),
     cv_folds: int | None = typer.Option(None, min=2, max=20, help="CV folds for Cleanlab."),
-    train_cleanlearning: bool | None = typer.Option(None, help="Train a CleanLearning model (classification only)."),
+    train_cleanlearning: bool | None = typer.Option(
+        None, help="Train a CleanLearning model (classification only)."
+    ),
     prune_and_retrain: bool | None = typer.Option(
         None,
         "--prune/--no-prune",
@@ -84,8 +95,12 @@ def run(
         max=0.2,
         help="Fraction of the training set to prune when retraining.",
     ),
-    prune_max_samples: int | None = typer.Option(None, min=0, help="Max samples to prune when retraining."),
-    save_json: Path | None = typer.Option(None, "--save-json", "-o", help="If set, save result JSON to this path."),
+    prune_max_samples: int | None = typer.Option(
+        None, min=0, help="Max samples to prune when retraining."
+    ),
+    save_json: Path | None = typer.Option(
+        None, "--save-json", "-o", help="If set, save result JSON to this path."
+    ),
 ) -> None:
     """
     Run one experiment and print a JSON result.
@@ -97,7 +112,11 @@ def run(
     """
     settings.ensure_dirs()
     logger.info("Starting experiment run")
-    base = RunConfig() if config_path is None else RunConfig.model_validate_json(config_path.read_text())
+    base = (
+        RunConfig()
+        if config_path is None
+        else RunConfig.model_validate_json(config_path.read_text())
+    )
     data = base.model_dump(mode="python")
 
     if dataset is not None:
@@ -111,7 +130,7 @@ def run(
         data["split"] = split.model_copy(update={"test_size": test_size}).model_dump(mode="python")
     if max_rows is not None or label_noise is not None:
         demo = DemoConfig.model_validate(data.get("demo", {}))
-        updates = {}
+        updates: dict[str, Any] = {}
         if max_rows is not None:
             updates["max_rows"] = max_rows
         if label_noise is not None:
@@ -128,7 +147,7 @@ def run(
         or prune_max_samples is not None
     ):
         cfg = CleanlabCfg.model_validate(data.get("cleanlab", {}))
-        updates2 = {}
+        updates2: dict[str, Any] = {}
         if cleanlab_enabled is not None:
             updates2["enabled"] = cleanlab_enabled
         if use_datalab is not None:
@@ -197,7 +216,9 @@ def download_data(
     hub = DatasetHub(settings.data_dir)
     console.print(f"[blue]Downloading {dataset.value}...[/blue]")
     ds = hub.load(dataset)
-    console.print(f"[green]✓[/green] Downloaded {ds.name.value} ({len(ds.df):,} rows) to `{settings.data_dir}`")
+    console.print(
+        f"[green]✓[/green] Downloaded {ds.name.value} ({len(ds.df):,} rows) to `{settings.data_dir}`"
+    )
 
 
 @app.command()
@@ -210,9 +231,13 @@ def sweep(
         help="Repeatable. If omitted, uses a sensible default list for the dataset task.",
     ),
     max_rows: int | None = typer.Option(None, min=100, help="Max rows to sample from dataset."),
-    label_noise: float | None = typer.Option(None, min=0.0, max=0.5, help="Demo label noise fraction."),
+    label_noise: float | None = typer.Option(
+        None, min=0.0, max=0.5, help="Demo label noise fraction."
+    ),
     cv_folds: int = typer.Option(3, min=2, max=20, help="CV folds for Cleanlab."),
-    save_csv: Path | None = typer.Option(None, "--save-csv", "-o", help="If set, save results CSV to this path."),
+    save_csv: Path | None = typer.Option(
+        None, "--save-csv", "-o", help="If set, save results CSV to this path."
+    ),
 ) -> None:
     """
     Run a model sweep comparing multiple models on the same dataset.

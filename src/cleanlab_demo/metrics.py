@@ -38,7 +38,9 @@ def classification_metrics(
             details["roc_auc"] = auc
             primary = auc
         except Exception:
-            _logger.debug("Could not compute ROC AUC (may require >1 class in y_true)", exc_info=True)
+            _logger.debug(
+                "Could not compute ROC AUC (may require >1 class in y_true)", exc_info=True
+            )
 
     return Metrics(primary=primary, details=details)
 
@@ -48,4 +50,3 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Metrics:
     mae = float(mean_absolute_error(y_true, y_pred))
     rmse = float(math.sqrt(mean_squared_error(y_true, y_pred)))
     return Metrics(primary=r2, details={"r2": r2, "mae": mae, "rmse": rmse})
-

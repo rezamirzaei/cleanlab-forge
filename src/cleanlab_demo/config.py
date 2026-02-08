@@ -34,25 +34,39 @@ class DatasetDefaults:
 DATASET_DEFAULTS: dict[DatasetName, DatasetDefaults] = {
     DatasetName.adult_income: DatasetDefaults(task=TaskType.classification, target_col="income"),
     DatasetName.bike_sharing: DatasetDefaults(task=TaskType.regression, target_col="cnt"),
-    DatasetName.california_housing: DatasetDefaults(task=TaskType.regression, target_col="MedHouseVal"),
+    DatasetName.california_housing: DatasetDefaults(
+        task=TaskType.regression, target_col="MedHouseVal"
+    ),
 }
 
 
 class SplitConfig(BaseModel):
     """Configuration for train/test split."""
 
-    test_size: float = Field(default=0.2, ge=0.05, le=0.5, description="Fraction of data for testing")
-    random_state: int = Field(default=42, ge=0, le=1_000_000, description="Random seed for reproducibility")
-    stratify: bool = Field(default=True, description="Whether to stratify split (classification only)")
+    test_size: float = Field(
+        default=0.2, ge=0.05, le=0.5, description="Fraction of data for testing"
+    )
+    random_state: int = Field(
+        default=42, ge=0, le=1_000_000, description="Random seed for reproducibility"
+    )
+    stratify: bool = Field(
+        default=True, description="Whether to stratify split (classification only)"
+    )
 
 
 class FeatureEngineeringConfig(BaseModel):
     """Configuration for feature preprocessing."""
 
-    impute_numeric: Literal["median", "mean"] = Field(default="median", description="Strategy for numeric imputation")
-    impute_categorical: Literal["most_frequent"] = Field(default="most_frequent", description="Strategy for categorical imputation")
+    impute_numeric: Literal["median", "mean"] = Field(
+        default="median", description="Strategy for numeric imputation"
+    )
+    impute_categorical: Literal["most_frequent"] = Field(
+        default="most_frequent", description="Strategy for categorical imputation"
+    )
     scale_numeric: bool = Field(default=True, description="Whether to standardize numeric features")
-    one_hot_max_categories: int = Field(default=100, ge=2, le=500, description="Max categories for one-hot encoding")
+    one_hot_max_categories: int = Field(
+        default=100, ge=2, le=500, description="Max categories for one-hot encoding"
+    )
 
 
 class ModelName(str, Enum):
@@ -70,14 +84,18 @@ class ModelConfig(BaseModel):
     """Configuration for the ML model."""
 
     name: ModelName = Field(description="Model type to use")
-    params: dict[str, Any] = Field(default_factory=dict, description="Additional model hyperparameters")
+    params: dict[str, Any] = Field(
+        default_factory=dict, description="Additional model hyperparameters"
+    )
 
 
 class CleanlabConfig(BaseModel):
     """Configuration for Cleanlab label issue detection."""
 
     enabled: bool = Field(default=True, description="Enable Cleanlab analysis")
-    cv_folds: int = Field(default=5, ge=2, le=20, description="Number of CV folds for out-of-sample predictions")
+    cv_folds: int = Field(
+        default=5, ge=2, le=20, description="Number of CV folds for out-of-sample predictions"
+    )
     use_datalab: bool = Field(default=True, description="Use Datalab for additional issue types")
     datalab_fast: bool = Field(
         default=True,
@@ -106,7 +124,9 @@ class CleanlabConfig(BaseModel):
         le=1.0,
         description="If set, keep only issues with score <= threshold (lower is worse).",
     )
-    max_issues: int = Field(default=200, ge=1, le=100_000, description="Maximum number of issues to report")
+    max_issues: int = Field(
+        default=200, ge=1, le=100_000, description="Maximum number of issues to report"
+    )
 
 
 class DemoConfig(BaseModel):
@@ -118,7 +138,9 @@ class DemoConfig(BaseModel):
         le=0.5,
         description="Fraction of training labels to randomly flip (classification demo).",
     )
-    noise_random_state: int = Field(default=42, ge=0, le=1_000_000, description="Random seed for noise injection")
+    noise_random_state: int = Field(
+        default=42, ge=0, le=1_000_000, description="Random seed for noise injection"
+    )
     max_rows: int | None = Field(
         default=None,
         ge=100,
@@ -129,6 +151,7 @@ class DemoConfig(BaseModel):
 
 class RunConfig(BaseModel):
     """Main configuration for running an experiment."""
+
     dataset: DatasetName = DatasetName.adult_income
     task: TaskType | None = None
     target_col: str | None = None
@@ -152,7 +175,9 @@ class RunConfig(BaseModel):
 
         if self.model is None:
             default_model = (
-                ModelName.logistic_regression if self.task == TaskType.classification else ModelName.ridge
+                ModelName.logistic_regression
+                if self.task == TaskType.classification
+                else ModelName.ridge
             )
             self.model = ModelConfig(name=default_model)
 
@@ -179,7 +204,9 @@ class LabelIssue(BaseModel):
 
     index: int = Field(description="Index in the training set")
     label: str | int | float = Field(description="Current label value")
-    suggested_label: str | int | float | None = Field(default=None, description="Suggested correct label")
+    suggested_label: str | int | float | None = Field(
+        default=None, description="Suggested correct label"
+    )
     score: float = Field(description="Confidence score (lower means more likely mislabeled)")
 
 
@@ -209,12 +236,16 @@ class RunResult(BaseModel):
     n_train: int = Field(description="Number of training samples")
     n_test: int = Field(description="Number of test samples")
     metrics: Metrics
-    label_issues: list[LabelIssue] = Field(default_factory=list, description="Detected label issues")
+    label_issues: list[LabelIssue] = Field(
+        default_factory=list, description="Detected label issues"
+    )
     variants: list[VariantResult] = Field(
         default_factory=list,
         description="Comparison of baseline vs Cleanlab-enabled training variants.",
     )
-    cleanlab_summary: dict[str, Any] = Field(default_factory=dict, description="Cleanlab analysis summary")
+    cleanlab_summary: dict[str, Any] = Field(
+        default_factory=dict, description="Cleanlab analysis summary"
+    )
     timestamp: str = Field(
         default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 UTC timestamp of when the experiment was run.",

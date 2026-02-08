@@ -75,4 +75,3 @@ def test_unsupported_regression_model():
     config = ModelConfig(name=ModelName.logistic_regression)  # Logistic is classification only
     with pytest.raises(ValueError, match="Unsupported regression model"):
         create_estimator(TaskType.regression, config, random_state=42)
-

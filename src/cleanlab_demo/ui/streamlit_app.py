@@ -135,7 +135,9 @@ def main() -> None:
         ]
     )
     if not variants_df.empty:
-        baseline_primary = float(variants_df.loc[variants_df["variant"] == "baseline", "primary"].iloc[0])
+        baseline_primary = float(
+            variants_df.loc[variants_df["variant"] == "baseline", "primary"].iloc[0]
+        )
         variants_df["delta_vs_baseline"] = variants_df["primary"].astype(float) - baseline_primary
         st.dataframe(variants_df.sort_values("primary", ascending=False), use_container_width=True)
         st.bar_chart(variants_df.set_index("variant")["primary"])
@@ -150,7 +152,10 @@ def main() -> None:
             st.warning(result.cleanlab_summary["datalab_error"])
         if "datalab_issue_summary" in result.cleanlab_summary:
             st.markdown("**Datalab issue summary**")
-            st.dataframe(pd.DataFrame(result.cleanlab_summary["datalab_issue_summary"]), use_container_width=True)
+            st.dataframe(
+                pd.DataFrame(result.cleanlab_summary["datalab_issue_summary"]),
+                use_container_width=True,
+            )
         if "datalab_examples" in result.cleanlab_summary:
             with st.expander("Datalab examples (flagged issues)", expanded=False):
                 st.json(result.cleanlab_summary["datalab_examples"])
@@ -162,7 +167,9 @@ def main() -> None:
         if st.button("Generate report"):
             from cleanlab_demo.ai.report import generate_ai_report
 
-            report_json = generate_ai_report(settings.artifacts_dir / "last_result.json", use_ai=use_ai)
+            report_json = generate_ai_report(
+                settings.artifacts_dir / "last_result.json", use_ai=use_ai
+            )
             try:
                 st.json(json.loads(report_json))
             except Exception:

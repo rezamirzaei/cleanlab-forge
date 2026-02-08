@@ -9,4 +9,3 @@ def pytest_configure() -> None:
     src = repo_root / "src"
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
-

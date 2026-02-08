@@ -15,8 +15,12 @@ class AIExperimentReport(BaseModel):
 
     headline: str = Field(description="Brief summary headline")
     summary: str = Field(description="Detailed summary of findings")
-    key_metrics: dict[str, float] = Field(default_factory=dict, description="Key performance metrics")
-    recommended_next_steps: list[str] = Field(default_factory=list, description="Actionable recommendations")
+    key_metrics: dict[str, float] = Field(
+        default_factory=dict, description="Key performance metrics"
+    )
+    recommended_next_steps: list[str] = Field(
+        default_factory=list, description="Actionable recommendations"
+    )
 
 
 def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
@@ -27,7 +31,9 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
     model = result.get("model", "unknown")
     task = result.get("task", "unknown")
     variants = result.get("variants", []) or []
-    datalab_summary = (result.get("cleanlab_summary", {}) or {}).get("datalab_issue_summary", []) or []
+    datalab_summary = (result.get("cleanlab_summary", {}) or {}).get(
+        "datalab_issue_summary", []
+    ) or []
 
     steps = [
         "Inspect top-ranked label issues and verify labels manually.",
@@ -35,17 +41,26 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
         "Compare at least 2 different models (linear + tree/boosting) to validate robustness.",
     ]
     if task == "regression":
-        steps.insert(0, "Start with outliers and near-duplicates detected by Datalab, then retrain and compare.")
+        steps.insert(
+            0,
+            "Start with outliers and near-duplicates detected by Datalab, then retrain and compare.",
+        )
 
     # Add metric-specific recommendations
     if metrics.get("roc_auc", 0) < 0.7:
-        steps.append("Consider feature engineering or trying more complex models - AUC is below 0.7.")
+        steps.append(
+            "Consider feature engineering or trying more complex models - AUC is below 0.7."
+        )
     if n_issues > 50:
-        steps.append(f"High number of label issues ({n_issues}) detected - prioritize data quality review.")
+        steps.append(
+            f"High number of label issues ({n_issues}) detected - prioritize data quality review."
+        )
 
     best_variant = None
     try:
-        best_variant = max(variants, key=lambda v: float(v.get("metrics", {}).get("primary", float("-inf"))))
+        best_variant = max(
+            variants, key=lambda v: float(v.get("metrics", {}).get("primary", float("-inf")))
+        )
     except Exception:
         best_variant = None
 
@@ -126,7 +141,12 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
     if not use_ai:
         return baseline.model_dump_json(indent=2)
 
-    if not (settings.openai_api_key or settings.anthropic_api_key or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")):
+    if not (
+        settings.openai_api_key
+        or settings.anthropic_api_key
+        or os.getenv("OPENAI_API_KEY")
+        or os.getenv("ANTHROPIC_API_KEY")
+    ):
         baseline.recommended_next_steps.insert(
             0, "Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to enable the LLM-backed report."
         )
@@ -160,7 +180,12 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
             baseline: AIExperimentReport
 
         logger.info(f"Generating AI report using {model_name}")
-        agent = Agent(model=model_name, output_type=AIExperimentReport, deps_type=Deps, system_prompt=system_prompt)
+        agent = Agent(
+            model=model_name,
+            output_type=AIExperimentReport,
+            deps_type=Deps,
+            system_prompt=system_prompt,
+        )
 
         @agent.tool
         def get_result(ctx: RunContext[Deps]) -> dict[str, Any]:
@@ -186,7 +211,9 @@ def generate_ai_report(result_path: Path | None = None, *, use_ai: bool = True) 
         @agent.tool
         def get_datalab_issue_summary(ctx: RunContext[Deps]) -> list[dict[str, Any]]:
             """Return Datalab issue summary rows."""
-            summary = (ctx.deps.result.get("cleanlab_summary") or {}).get("datalab_issue_summary") or []
+            summary = (ctx.deps.result.get("cleanlab_summary") or {}).get(
+                "datalab_issue_summary"
+            ) or []
             return list(summary)
 
         deps = Deps(result=result, baseline=baseline)

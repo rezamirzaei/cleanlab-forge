@@ -69,7 +69,9 @@ def _inject_label_noise(y: np.ndarray, *, frac: float, random_state: int) -> np.
     return y_noisy
 
 
-def _safe_dataframe_sample(df: pd.DataFrame, *, max_rows: int | None, random_state: int) -> pd.DataFrame:
+def _safe_dataframe_sample(
+    df: pd.DataFrame, *, max_rows: int | None, random_state: int
+) -> pd.DataFrame:
     if max_rows is None or len(df) <= max_rows:
         return df
     return df.sample(n=max_rows, random_state=random_state).reset_index(drop=True)
@@ -88,7 +90,9 @@ def _compute_pred_probs_cv(
         raise ValueError("pred_probs are only computed for classification tasks")
 
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
-    pred_probs = cross_val_predict(pipeline, X_train, y_train, cv=cv, method="predict_proba", n_jobs=1)
+    pred_probs = cross_val_predict(
+        pipeline, X_train, y_train, cv=cv, method="predict_proba", n_jobs=1
+    )
     return cast(np.ndarray, pred_probs)
 
 
@@ -147,7 +151,9 @@ def _compute_datalab_features(
             return cast(np.ndarray, np.asarray(X_vec)), None
 
         n_components = min(50, max(2, n_features - 1))
-        features = TruncatedSVD(n_components=n_components, random_state=random_state).fit_transform(X_vec)
+        features = TruncatedSVD(n_components=n_components, random_state=random_state).fit_transform(
+            X_vec
+        )
         return cast(np.ndarray, features), None
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
@@ -204,7 +210,7 @@ def _run_datalab(
             out: list[dict[str, Any]] = []
             for _, r in tmp.iterrows():
                 idx = int(r["train_row"])
-                row = {
+                row: dict[str, Any] = {
                     "train_row": idx,
                     score_col: float(r[score_col]),
                 }
@@ -313,6 +319,9 @@ class ExperimentRunner:
         target_col = config.target_col or dataset.target_col
         if target_col not in df.columns:
             raise ValueError(f"target_col={target_col} missing from dataset columns")
+
+        # These are guaranteed by RunConfig's model_validator, but mypy doesn't know that
+        assert config.task is not None, "task must be set by config validator"
 
         X = df.drop(columns=[target_col])
         y_raw = df[target_col]
@@ -426,8 +435,14 @@ class ExperimentRunner:
                     cleanlab_summary["datalab_save_failed"] = f"{type(e).__name__}: {e}"
 
                 # If we didn't compute label issues via pred_probs (e.g., regression), populate label_issues from Datalab.
-                if config.task == TaskType.regression and not label_issues and "label_score" in datalab_issues.columns:
-                    tmp = datalab_issues.reset_index(names="train_row").sort_values("label_score", ascending=True)
+                if (
+                    config.task == TaskType.regression
+                    and not label_issues
+                    and "label_score" in datalab_issues.columns
+                ):
+                    tmp = datalab_issues.reset_index(names="train_row").sort_values(
+                        "label_score", ascending=True
+                    )
                     for _, r in tmp.head(config.cleanlab.max_issues).iterrows():
                         idx = int(r["train_row"])
                         if bool(r.get("is_label_issue", True)) is False:
@@ -436,7 +451,9 @@ class ExperimentRunner:
                             LabelIssue(
                                 index=idx,
                                 label=float(cast(np.ndarray, y_train)[idx]),
-                                suggested_label=float(r.get("predicted_label")) if "predicted_label" in r else None,
+                                suggested_label=float(r.get("predicted_label"))
+                                if "predicted_label" in r
+                                else None,
                                 score=float(r["label_score"]),
                             )
                         )
@@ -460,12 +477,22 @@ class ExperimentRunner:
                 elif datalab_issues is not None:
                     if {"is_label_issue", "label_score"}.issubset(datalab_issues.columns):
                         tmp = datalab_issues[datalab_issues["is_label_issue"]]
-                        tmp = tmp.reset_index(names="train_row").sort_values("label_score", ascending=True)
-                        prune_indices = [int(v) for v in tmp["train_row"].head(n_prune_target).tolist()]
-                    if not prune_indices and {"is_outlier_issue", "outlier_score"}.issubset(datalab_issues.columns):
+                        tmp = tmp.reset_index(names="train_row").sort_values(
+                            "label_score", ascending=True
+                        )
+                        prune_indices = [
+                            int(v) for v in tmp["train_row"].head(n_prune_target).tolist()
+                        ]
+                    if not prune_indices and {"is_outlier_issue", "outlier_score"}.issubset(
+                        datalab_issues.columns
+                    ):
                         tmp = datalab_issues[datalab_issues["is_outlier_issue"]]
-                        tmp = tmp.reset_index(names="train_row").sort_values("outlier_score", ascending=True)
-                        prune_indices = [int(v) for v in tmp["train_row"].head(n_prune_target).tolist()]
+                        tmp = tmp.reset_index(names="train_row").sort_values(
+                            "outlier_score", ascending=True
+                        )
+                        prune_indices = [
+                            int(v) for v in tmp["train_row"].head(n_prune_target).tolist()
+                        ]
 
                 prune_indices = sorted({i for i in prune_indices if 0 <= i < len(X_train)})
                 if prune_indices:
@@ -480,7 +507,9 @@ class ExperimentRunner:
                     if config.task == TaskType.classification:
                         y_pred2 = cast(np.ndarray, pruned_pipeline.predict(X_test))
                         y_proba2 = cast(np.ndarray, pruned_pipeline.predict_proba(X_test))
-                        pruned_metrics = classification_metrics(cast(np.ndarray, y_test), y_pred2, y_proba2)
+                        pruned_metrics = classification_metrics(
+                            cast(np.ndarray, y_test), y_pred2, y_proba2
+                        )
                     else:
                         y_pred2 = cast(np.ndarray, pruned_pipeline.predict(X_test))
                         pruned_metrics = regression_metrics(cast(np.ndarray, y_test), y_pred2)
@@ -494,7 +523,11 @@ class ExperimentRunner:
                         )
                     )
 
-        if config.task == TaskType.classification and config.cleanlab.enabled and config.cleanlab.train_cleanlearning:
+        if (
+            config.task == TaskType.classification
+            and config.cleanlab.enabled
+            and config.cleanlab.train_cleanlearning
+        ):
             cl_metrics, cl_error = _try_cleanlearning_metrics(
                 pipeline,
                 X_train,

@@ -90,4 +90,3 @@ def build_preprocessor(X: pd.DataFrame, config: FeatureEngineeringConfig) -> Col
         remainder="drop",
         verbose_feature_names_out=False,
     )
-
