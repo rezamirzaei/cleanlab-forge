@@ -43,7 +43,7 @@ class LabelCodec:
 
     def decode_one(self, label_int: int) -> str | int:
         value = self.encoder.inverse_transform([label_int])[0]
-        if isinstance(value, (np.integer, int)):
+        if isinstance(value, np.integer | int):
             return int(value)
         return str(value)
 
@@ -219,17 +219,17 @@ def _run_datalab(
                 if issue_name == "label" and "predicted_label" in tmp.columns:
                     pred = r.get("predicted_label")
                     if pred is not None:
-                        if isinstance(pred, (np.integer, int)):
+                        if isinstance(pred, np.integer | int):
                             row["predicted_label"] = int(pred)
-                        elif isinstance(pred, (np.floating, float)):
+                        elif isinstance(pred, np.floating | float):
                             row["predicted_label"] = float(pred)
                         else:
                             row["predicted_label"] = str(pred)
                 try:
                     label_val = df_train_with_labels.iloc[idx][label_col]
-                    if isinstance(label_val, (np.integer, int)):
+                    if isinstance(label_val, np.integer | int):
                         row["label"] = int(label_val)
-                    elif isinstance(label_val, (np.floating, float)):
+                    elif isinstance(label_val, np.floating | float):
                         row["label"] = float(label_val)
                     elif label_val is not None:
                         row["label"] = str(label_val)

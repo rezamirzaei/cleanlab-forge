@@ -7,8 +7,9 @@ A comprehensive ML project demonstrating [Cleanlab](https://github.com/cleanlab/
 - 📊 **Multiple Datasets**: UCI Adult Income (classification), UCI Bike Sharing (regression), California Housing (regression; natural outliers)
 - 🤖 **Model Support**: Logistic Regression, k-NN, Random Forest, ExtraTrees, Histogram Gradient Boosting, Ridge
 - 🔍 **Cleanlab Integration**: Label issues + Datalab (outliers/near-duplicates/non-iid) + optional prune & retrain comparison
+- 🧩 **More Task Types**: Multi-label, token classification, multi-annotator labeling + active learning, object detection, image segmentation (via tasks + notebooks)
 - 📈 **Model Sweeps**: Compare multiple models on the same dataset
-- 🎛️ **Streamlit UI**: Side-by-side comparison of baseline vs Cleanlab-enabled variants
+- 🎛️ **Streamlit UI**: End-to-end tabular runner + dedicated task pages
 - 📓 **Jupyter Notebooks**: Step-by-step tutorials
 - 🤖 **AI Reports**: Optional LLM-powered analysis reports (via pydantic-ai)
 
@@ -39,6 +40,14 @@ pytest -v
 cleanlab-demo --version
 ```
 
+## Run the UI (Streamlit)
+
+```bash
+streamlit run src/cleanlab_demo/ui/streamlit_app.py
+```
+
+Use the sidebar **Mode** selector to switch between the tabular end-to-end runner and the dedicated task pages.
+
 ## CLI Usage
 
 ```bash
@@ -63,6 +72,22 @@ cleanlab-demo download-data adult_income
 cleanlab-demo download-data bike_sharing
 cleanlab-demo download-data california_housing
 ```
+
+## Task Coverage (and how to run each)
+
+This repo includes a tabular end-to-end CLI (above) plus dedicated task implementations under `src/cleanlab_demo/tasks/`.
+Each task returns a Pydantic-validated result; notebooks/UI default to real-world runs (synthetic corruption defaults to `0.0`, but can be turned on to measure precision/recall).
+
+- **Binary classification** (tabular): `cleanlab-demo run -d adult_income --cleanlab`
+- **Multi-class classification** (CoverType): `notebooks/05_multiclass_classification_covtype.ipynb`
+- **Multi-label classification** (OpenML emotions): `notebooks/06_multilabel_classification_emotions.ipynb`
+- **Token classification** (UD POS): `notebooks/07_token_classification_ud_pos.ipynb`
+- **Regression** (with regression-specific CleanLearning): `notebooks/08_regression_cleanlearning_bike_sharing.ipynb`
+- **Multi-annotator + active learning** (MovieLens 100K): `notebooks/09_multiannotator_active_learning_movielens_100k.ipynb`
+- **Outlier detection** (Datalab): `notebooks/10_outlier_detection_datalab_california_housing.ipynb`
+- **Object detection + image segmentation** (PennFudanPed, optional): `notebooks/11_vision_detection_segmentation_pennfudan.ipynb`
+
+Vision dependencies (torch/torchvision) are included in the default install.
 
 ## Configuration
 
@@ -106,6 +131,13 @@ Additional notebooks:
 - `notebooks/01_quickstart_cleanlab.ipynb`
 - `notebooks/02_model_sweep.ipynb`
 - `notebooks/04_regression_outliers.ipynb`
+- `notebooks/05_multiclass_classification_covtype.ipynb`
+- `notebooks/06_multilabel_classification_emotions.ipynb`
+- `notebooks/07_token_classification_ud_pos.ipynb`
+- `notebooks/08_regression_cleanlearning_bike_sharing.ipynb`
+- `notebooks/09_multiannotator_active_learning_movielens_100k.ipynb`
+- `notebooks/10_outlier_detection_datalab_california_housing.ipynb`
+- `notebooks/11_vision_detection_segmentation_pennfudan.ipynb` (requires torch/torchvision)
 
 ## Project Structure
 
@@ -114,6 +146,7 @@ cleanlab_demo/
 ├── src/cleanlab_demo/
 │   ├── ai/          # AI report generation
 │   ├── data/        # Dataset loading and schemas
+│   ├── tasks/       # Dedicated task implementations (multi-label, token, vision, etc.)
 │   ├── experiments/ # Experiment runner and sweeps
 │   ├── features/    # Feature preprocessing
 │   ├── models/      # Model factory
@@ -123,6 +156,55 @@ cleanlab_demo/
 ├── tests/           # Test suite
 └── docker-compose.yml
 ```
+
+## Mathematical Background (high-level)
+
+Cleanlab is model-agnostic: it only needs your dataset’s labels and *out-of-sample* model predictions (e.g., via cross-validation).
+
+**Classification (confident learning)**
+
+- Let noisy labels be `\tilde{y}` and unknown true labels be `y*`.
+- Train a probabilistic classifier that outputs `\hat{p}(y=k|x)` and obtain **out-of-sample** predicted probabilities for each training example.
+- A common label-quality score is **self-confidence**:
+  - `s_i = \hat{p}(\tilde{y}_i | x_i)` (lower means the given label looks less plausible under the model).
+- Confident learning estimates the (noisy label, true label) joint distribution via a **confident joint** `\hat{C}`:
+  - Intuition: count examples whose predicted class is confidently `j` (above a class-dependent threshold) while their given label is `i`.
+  - From `\hat{C}`, estimate noise rates like `P(\tilde{y}=i | y*=j)` and prune/rank likely label issues.
+
+**Multi-label**
+
+- Each example has a *set* of labels. Cleanlab scores label quality using the per-class predicted probabilities and aggregates scores over the label set (e.g., based on self-confidence).
+- The demo injects missing/extra tags and shows how pruning low-quality examples can improve F1.
+
+**Token classification**
+
+- Treat each token as a classification decision with its own predicted probability vector.
+- Cleanlab computes token-level label quality (e.g., self-confidence) and can aggregate to sentence-level scores for finding problematic sequences.
+
+**Regression**
+
+- Cleanlab’s regression `CleanLearning` identifies label issues using residuals (difference between observed label and model prediction) together with uncertainty estimates (via CV + bootstrapping).
+- Intuition: labels that are extreme outliers relative to model predictions/uncertainty are more likely incorrect.
+
+**Datalab (outliers, near-duplicates, non-iid)**
+
+- Many issue types are computed from distances/similarities in feature space (or embeddings), often via kNN.
+- Example: outliers have unusually large kNN distances; near-duplicates have unusually small distances.
+
+**Object detection**
+
+- Uses model-predicted boxes + confidences and overlaps (IoU) with annotated boxes.
+- Flags images where boxes look swapped (wrong class), poorly located, or overlooked (missing) given the model’s confident predictions.
+
+**Segmentation**
+
+- Uses per-pixel predicted probabilities `\hat{p}(y=k|x_pixel)` and integer masks `(H,W)`.
+- Finds pixels likely mislabeled and aggregates per-image scores (e.g., soft-min over pixel label quality).
+
+**Multi-annotator + active learning**
+
+- For label matrices `labels[example, annotator]`, Cleanlab estimates consensus labels and per-example label quality while accounting for annotator reliability.
+- Active learning scores prioritize which examples are most informative to (re)label next (low confidence/disagreement).
 
 ## Development
 

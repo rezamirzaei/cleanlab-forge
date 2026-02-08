@@ -92,7 +92,7 @@ def _deterministic_report(result: dict[str, Any]) -> AIExperimentReport:
                 else ""
             )
         ).strip(),
-        key_metrics={k: float(v) for k, v in metrics.items() if isinstance(v, (int, float))},
+        key_metrics={k: float(v) for k, v in metrics.items() if isinstance(v, int | float)},
         recommended_next_steps=steps,
     )
 

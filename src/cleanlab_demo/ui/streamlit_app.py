@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from pydantic import BaseModel as PydanticBaseModel
 
 from cleanlab_demo.config import (
     DATASET_DEFAULTS,
@@ -40,9 +42,24 @@ def _available_models(task: TaskType) -> list[ModelName]:
     ]
 
 
-def main() -> None:
-    st.set_page_config(page_title="Cleanlab Demo", layout="wide")
-    st.title("Cleanlab Demo")
+def _save_model_json(name: str, model: PydanticBaseModel) -> str | None:
+    try:
+        settings.ensure_dirs()
+        path = settings.artifacts_dir / f"last_{name}.json"
+        path.write_text(model.model_dump_json(indent=2), encoding="utf-8")
+        return str(path)
+    except Exception as e:
+        st.warning(f"Could not save result JSON: {e}")
+        return None
+
+
+def _render_json_expander(model: PydanticBaseModel, *, title: str = "Result JSON") -> None:
+    with st.expander(title, expanded=False):
+        st.json(json.loads(model.model_dump_json()))
+
+
+def _render_tabular_e2e() -> None:
+    st.subheader("Tabular end-to-end (CLI runner)")
 
     with st.sidebar:
         dataset = st.selectbox("Dataset", options=list(DatasetName), format_func=lambda d: d.value)
@@ -85,7 +102,7 @@ def main() -> None:
             train_cleanlearning = False
             cv_folds = 5
 
-        run_clicked = st.button("Run experiment", type="primary")
+        run_clicked = st.button("Run experiment", type="primary", key="run_tabular")
 
     if not run_clicked:
         st.info("Pick options in the sidebar and click **Run experiment**.")
@@ -113,13 +130,10 @@ def main() -> None:
 
     with st.spinner("Running..."):
         result = run_experiment(config)
-    try:
-        settings.ensure_dirs()
-        (settings.artifacts_dir / "last_result.json").write_text(
-            result.model_dump_json(indent=2), encoding="utf-8"
-        )
-    except Exception as e:
-        st.warning(f"Could not save result to artifacts directory: {e}")
+
+    saved = _save_model_json("result", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
 
     st.subheader("Model comparison (with/without Cleanlab)")
     variants_df = pd.DataFrame(
@@ -178,10 +192,424 @@ def main() -> None:
     st.subheader("Label issues")
     if not result.label_issues:
         st.caption("No label issues (or Cleanlab disabled).")
+        _render_json_expander(result)
         return
 
     issues_df = pd.DataFrame([li.model_dump() for li in result.label_issues])
     st.dataframe(issues_df)
+    _render_json_expander(result)
+
+
+def _render_multiclass_covtype_demo() -> None:
+    st.subheader("Multi-class classification (CoverType)")
+    st.caption("Optional synthetic label noise for evaluation (set to 0.0 for real-world run).")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("CoverType demo")
+        max_rows = st.number_input(
+            "Max rows", min_value=100, max_value=600_000, value=10_000, step=1000
+        )
+        test_size = st.slider("Test size", min_value=0.05, max_value=0.5, value=0.2, step=0.05)
+        noise_frac = st.slider("Noise fraction", min_value=0.0, max_value=0.5, value=0.0, step=0.01)
+        cv_folds = st.slider("CV folds", min_value=2, max_value=20, value=3, step=1)
+        prune_frac = st.slider(
+            "Prune fraction", min_value=0.0, max_value=0.2, value=0.02, step=0.01
+        )
+        seed = st.number_input("Seed", min_value=0, max_value=1_000_000, value=42, step=1)
+        run_clicked = st.button("Run demo", type="primary", key="run_covtype")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import CovtypeDataProvider
+    from cleanlab_demo.tasks.multiclass import (
+        MulticlassClassificationConfig,
+        MulticlassClassificationTask,
+    )
+
+    with st.spinner("Running..."):
+        task = MulticlassClassificationTask(CovtypeDataProvider(max_rows=int(max_rows)))
+        config = MulticlassClassificationConfig(
+            test_size=float(test_size),
+            noise_frac=float(noise_frac),
+            cv_folds=int(cv_folds),
+            prune_frac=float(prune_frac),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_multiclass_covtype", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    metrics_df = pd.DataFrame(
+        [
+            {"variant": "baseline", **result.metrics.baseline.model_dump()},
+            {"variant": "pruned_retrain", **result.metrics.pruned_retrain.model_dump()},
+        ]
+    )
+    st.dataframe(metrics_df, use_container_width=True)
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_multilabel_emotions_demo() -> None:
+    st.subheader("Multi-label classification (OpenML emotions)")
+    st.caption("Optional synthetic tag noise for evaluation (set to 0.0 for real-world run).")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Emotions demo")
+        test_size = st.slider(
+            "Test size", min_value=0.05, max_value=0.5, value=0.2, step=0.05, key="emo_test"
+        )
+        noise_frac = st.slider(
+            "Noise fraction", min_value=0.0, max_value=0.5, value=0.0, step=0.01, key="emo_noise"
+        )
+        cv_folds = st.slider("CV folds", min_value=2, max_value=20, value=5, step=1, key="emo_cv")
+        prune_frac = st.slider(
+            "Prune fraction", min_value=0.0, max_value=0.5, value=0.05, step=0.01, key="emo_prune"
+        )
+        seed = st.number_input(
+            "Seed", min_value=0, max_value=1_000_000, value=42, step=1, key="emo_seed"
+        )
+        run_clicked = st.button("Run demo", type="primary", key="run_emotions")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import EmotionsDataProvider
+    from cleanlab_demo.tasks.multilabel import (
+        MultilabelClassificationConfig,
+        MultilabelClassificationTask,
+    )
+
+    with st.spinner("Running..."):
+        task = MultilabelClassificationTask(EmotionsDataProvider())
+        config = MultilabelClassificationConfig(
+            test_size=float(test_size),
+            noise_frac=float(noise_frac),
+            cv_folds=int(cv_folds),
+            prune_frac=float(prune_frac),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_multilabel_emotions", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    metrics_df = pd.DataFrame(
+        [
+            {"variant": "baseline", **result.metrics.baseline.model_dump()},
+            {"variant": "pruned_retrain", **result.metrics.pruned_retrain.model_dump()},
+        ]
+    )
+    st.dataframe(metrics_df, use_container_width=True)
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_token_udpos_demo() -> None:
+    st.subheader("Token classification (UD English EWT POS)")
+    st.caption(f"Downloads UD files into `{settings.data_dir / 'ud_ewt'}`.")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("UD POS demo")
+        max_train = st.slider(
+            "Max train sentences", min_value=50, max_value=10_000, value=1000, step=50
+        )
+        max_dev = st.slider("Max dev sentences", min_value=50, max_value=5000, value=300, step=50)
+        noise_frac = st.slider(
+            "Token noise fraction", min_value=0.0, max_value=0.5, value=0.0, step=0.01
+        )
+        cv_folds = st.slider("CV folds", min_value=2, max_value=10, value=3, step=1)
+        prune_frac = st.slider(
+            "Prune fraction", min_value=0.0, max_value=0.2, value=0.03, step=0.01
+        )
+        seed = st.number_input("Seed", min_value=0, max_value=1_000_000, value=42, step=1)
+        run_clicked = st.button("Run demo", type="primary", key="run_udpos")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import UDEnglishEWTProvider
+    from cleanlab_demo.tasks.token import TokenClassificationConfig, TokenClassificationTask
+
+    with st.spinner("Running..."):
+        task = TokenClassificationTask(UDEnglishEWTProvider())
+        config = TokenClassificationConfig(
+            max_train_sentences=int(max_train),
+            max_dev_sentences=int(max_dev),
+            noise_frac=float(noise_frac),
+            cv_folds=int(cv_folds),
+            prune_frac=float(prune_frac),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_token_udpos", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    metrics_df = pd.DataFrame(
+        [
+            {"variant": "baseline", **result.metrics.baseline.model_dump()},
+            {"variant": "pruned_retrain", **result.metrics.pruned_retrain.model_dump()},
+        ]
+    )
+    st.dataframe(metrics_df, use_container_width=True)
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_regression_bike_cleanlearning_demo() -> None:
+    st.subheader("Regression (Bike Sharing) + Cleanlab regression CleanLearning")
+    st.caption("Optional synthetic label noise for evaluation (set to 0.0 for real-world run).")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Bike Sharing demo")
+        max_rows = st.number_input(
+            "Max rows", min_value=200, max_value=200_000, value=10_000, step=1000
+        )
+        test_size = st.slider(
+            "Test size", min_value=0.05, max_value=0.5, value=0.2, step=0.05, key="bike_test"
+        )
+        noise_frac = st.slider(
+            "Noise fraction", min_value=0.0, max_value=0.5, value=0.0, step=0.01, key="bike_noise"
+        )
+        cv_folds = st.slider("CV folds", min_value=2, max_value=20, value=5, step=1, key="bike_cv")
+        prune_frac = st.slider(
+            "Prune fraction", min_value=0.0, max_value=0.2, value=0.02, step=0.01, key="bike_prune"
+        )
+        seed = st.number_input(
+            "Seed", min_value=0, max_value=1_000_000, value=42, step=1, key="bike_seed"
+        )
+        run_clicked = st.button("Run demo", type="primary", key="run_bike_cleanlearning")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import BikeSharingDataProvider
+    from cleanlab_demo.tasks.regression import (
+        RegressionCleanLearningConfig,
+        RegressionCleanLearningTask,
+    )
+
+    with st.spinner("Running..."):
+        task = RegressionCleanLearningTask(BikeSharingDataProvider(max_rows=int(max_rows)))
+        config = RegressionCleanLearningConfig(
+            test_size=float(test_size),
+            noise_frac=float(noise_frac),
+            cv_folds=int(cv_folds),
+            prune_frac=float(prune_frac),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_regression_bike_cleanlearning", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    metrics_df = pd.DataFrame(
+        [
+            {"variant": "baseline", **result.metrics.baseline.model_dump()},
+            {"variant": "pruned_retrain", **result.metrics.pruned_retrain.model_dump()},
+        ]
+    )
+    st.dataframe(metrics_df, use_container_width=True)
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_outlier_california_housing_demo() -> None:
+    st.subheader("Outlier detection (California Housing) + Cleanlab Datalab")
+    st.caption("Optional synthetic feature outliers for evaluation (set to 0.0 for real-world run).")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Outlier demo")
+        max_rows = st.number_input(
+            "Max rows", min_value=200, max_value=200_000, value=10_000, step=1000
+        )
+        outlier_frac = st.slider(
+            "Synthetic outlier fraction", min_value=0.0, max_value=0.2, value=0.0, step=0.01
+        )
+        seed = st.number_input(
+            "Seed", min_value=0, max_value=1_000_000, value=42, step=1, key="out_seed"
+        )
+        run_clicked = st.button("Run demo", type="primary", key="run_outlier")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import CaliforniaHousingOutlierProvider
+    from cleanlab_demo.tasks.outlier import OutlierDetectionConfig, OutlierDetectionTask
+
+    with st.spinner("Running..."):
+        task = OutlierDetectionTask(CaliforniaHousingOutlierProvider(max_rows=int(max_rows)))
+        config = OutlierDetectionConfig(
+            outlier_frac=float(outlier_frac),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_outlier_california_housing", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_multiannotator_active_learning_demo() -> None:
+    st.subheader("Multi-annotator classification + active learning (MovieLens 100K)")
+    st.caption("Real multi-rater labels: users rate movies (1-5), with missing labels allowed.")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Multi-annotator demo")
+        max_movies = st.number_input("Max movies", min_value=50, max_value=5000, value=800, step=50)
+        max_annotators = st.slider("Max annotators", min_value=5, max_value=200, value=50, step=5)
+        min_ratings_per_movie = st.slider(
+            "Min ratings per movie", min_value=5, max_value=100, value=10, step=1
+        )
+        min_ratings_per_annotator = st.slider(
+            "Min ratings per annotator", min_value=10, max_value=500, value=100, step=10
+        )
+        cv_folds = st.slider("CV folds", min_value=2, max_value=20, value=5, step=1)
+        seed = st.number_input(
+            "Seed", min_value=0, max_value=1_000_000, value=42, step=1, key="ma_seed"
+        )
+        run_clicked = st.button("Run demo", type="primary", key="run_multiannotator")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import MovieLens100KProvider
+    from cleanlab_demo.tasks.multiannotator import MultiannotatorConfig, MultiannotatorTask
+
+    with st.spinner("Running..."):
+        task = MultiannotatorTask(
+            MovieLens100KProvider(
+                max_movies=int(max_movies),
+                max_annotators=int(max_annotators),
+                min_ratings_per_movie=int(min_ratings_per_movie),
+                min_ratings_per_annotator=int(min_ratings_per_annotator),
+            )
+        )
+        config = MultiannotatorConfig(
+            cv_folds=int(cv_folds),
+            seed=int(seed),
+        )
+        result = task.run(config)
+
+    saved = _save_model_json("demo_multiannotator_active_learning", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    st.json(result.notes.model_dump())
+    st.json(result.cleanlab.model_dump())
+    _render_json_expander(result)
+
+
+def _render_vision_pennfudan_demo() -> None:
+    st.subheader("Vision (PennFudanPed): object detection + segmentation")
+    st.caption("Requires torch/torchvision installed (see README).")
+
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Vision demo")
+        data_dir = st.text_input("Data dir", value=str(settings.data_dir / "pennfudan"))
+        max_images = st.slider("Max images", min_value=1, max_value=50, value=8, step=1)
+        score_threshold = st.slider(
+            "Score threshold", min_value=0.0, max_value=1.0, value=0.3, step=0.05
+        )
+        corrupt_frac = st.slider(
+            "Corrupt fraction", min_value=0.0, max_value=1.0, value=0.0, step=0.05
+        )
+        seed = st.number_input(
+            "Seed", min_value=0, max_value=1_000_000, value=42, step=1, key="vis_seed"
+        )
+        run_clicked = st.button("Run demo", type="primary", key="run_vision")
+
+    if not run_clicked:
+        st.info("Pick options in the sidebar and click **Run demo**.")
+        return
+
+    from cleanlab_demo.data.providers import PennFudanPedProvider
+    from cleanlab_demo.tasks.vision import (
+        VisionDetectionSegmentationConfig,
+        VisionDetectionSegmentationTask,
+    )
+
+    try:
+        with st.spinner("Running... (may take a while)"):
+            task = VisionDetectionSegmentationTask(PennFudanPedProvider())
+            config = VisionDetectionSegmentationConfig(
+                data_dir=Path(data_dir),
+                max_images=int(max_images),
+                score_threshold=float(score_threshold),
+                corrupt_frac=float(corrupt_frac),
+                seed=int(seed),
+            )
+            result = task.run(config)
+    except Exception as e:
+        st.error(str(e))
+        return
+
+    saved = _save_model_json("demo_vision_pennfudan", result)
+    if saved:
+        st.caption(f"Saved: `{saved}`")
+
+    st.json(result.object_detection.model_dump())
+    st.json(result.segmentation.model_dump())
+    _render_json_expander(result)
+
+
+def main() -> None:
+    st.set_page_config(page_title="Cleanlab Demo", layout="wide")
+    st.title("Cleanlab Demo")
+
+    mode = st.sidebar.selectbox(
+        "Mode",
+        options=[
+            "Tabular (end-to-end)",
+            "Demo: multi-class (CoverType)",
+            "Demo: multi-label (emotions)",
+            "Demo: token classification (UD POS)",
+            "Demo: regression (Bike Sharing)",
+            "Demo: outlier detection (Datalab)",
+            "Demo: multi-annotator + active learning",
+            "Demo: vision (PennFudanPed)",
+        ],
+    )
+
+    if mode == "Tabular (end-to-end)":
+        _render_tabular_e2e()
+    elif mode == "Demo: multi-class (CoverType)":
+        _render_multiclass_covtype_demo()
+    elif mode == "Demo: multi-label (emotions)":
+        _render_multilabel_emotions_demo()
+    elif mode == "Demo: token classification (UD POS)":
+        _render_token_udpos_demo()
+    elif mode == "Demo: regression (Bike Sharing)":
+        _render_regression_bike_cleanlearning_demo()
+    elif mode == "Demo: outlier detection (Datalab)":
+        _render_outlier_california_housing_demo()
+    elif mode == "Demo: multi-annotator + active learning":
+        _render_multiannotator_active_learning_demo()
+    elif mode == "Demo: vision (PennFudanPed)":
+        _render_vision_pennfudan_demo()
 
 
 if __name__ == "__main__":

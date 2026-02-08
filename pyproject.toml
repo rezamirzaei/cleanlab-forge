@@ -10,8 +10,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "cleanlab[datalab]>=2.6.0",
+  "ipykernel>=7.2.0",
   "joblib>=1.4.2",
-  "numpy>=1.26.4",
+  "numpy>=1.26.4,<2",
   "pandas>=2.2.0",
   "pydantic>=2.6.1",
   "pydantic-settings>=2.2.1",
@@ -19,6 +20,9 @@ dependencies = [
   "rich>=13.7.1",
   "scikit-learn>=1.4.0",
   "typer>=0.12.3",
+  "torch>=2.1.0,<2.3.0",
+  "torchvision>=0.16.0,<0.18.0",
+  "Pillow>=10.0.0"
 ]
 
 [project.optional-dependencies]
@@ -37,6 +41,7 @@ notebooks = [
   "seaborn>=0.13.0",
 ]
 ui = ["plotly>=5.19.0", "streamlit>=1.32.0"]
+
 
 [project.scripts]
 cleanlab-demo = "cleanlab_demo.cli:app"
